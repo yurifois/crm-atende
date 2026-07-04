@@ -275,9 +275,12 @@ export async function atualizarRecurso(
 // ------------------------------------------------------------------
 // Numeros de WhatsApp (instancias Evolution)
 // ------------------------------------------------------------------
-export async function criarNumero(empresaId: string) {
+export async function criarNumero(empresaId: string, formData: FormData) {
+  // Numero do cliente (com DDI+DDD, ex: 5561999998888). Opcional:
+  // se informado, gera codigo de pareamento; se vazio, conecta so por QR.
+  const numero = (str(formData, "numero") ?? "").replace(/\D/g, "") || null;
   const instanceName = `crm_${empresaId.slice(-6)}_${Date.now().toString(36)}`;
-  const { hash } = await criarInstancia(instanceName);
+  const { hash } = await criarInstancia(instanceName, numero);
   // Aponta o webhook desta instancia para o app (IP auto-detectado).
   try {
     await configurarWebhook(instanceName, urlWebhook());
@@ -289,6 +292,7 @@ export async function criarNumero(empresaId: string) {
       empresaId,
       instanceName,
       instanceToken: hash,
+      telefone: numero,
       status: "CONECTANDO",
     },
   });

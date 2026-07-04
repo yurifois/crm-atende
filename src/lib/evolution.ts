@@ -32,30 +32,35 @@ async function evo(path: string, init?: RequestInit) {
   return data;
 }
 
-// Cria a instancia e ja retorna o primeiro QR.
-export async function criarInstancia(instanceName: string) {
+// Cria a instancia. Se `numero` for informado, tambem gera um codigo de
+// pareamento (o cliente digita esse codigo no proprio WhatsApp, sem QR).
+export async function criarInstancia(instanceName: string, numero?: string | null) {
+  const body: Record<string, unknown> = {
+    instanceName,
+    integration: "WHATSAPP-BAILEYS",
+    qrcode: true,
+  };
+  if (numero) body.number = numero;
   const data = (await evo("/instance/create", {
     method: "POST",
-    body: JSON.stringify({
-      instanceName,
-      integration: "WHATSAPP-BAILEYS",
-      qrcode: true,
-    }),
+    body: JSON.stringify(body),
   })) as {
     hash?: string;
-    qrcode?: { base64?: string };
+    qrcode?: { base64?: string; pairingCode?: string };
     instance?: { status?: string };
   };
   return {
     hash: data.hash ?? null,
     qrBase64: data.qrcode?.base64 ?? null,
+    pairingCode: data.qrcode?.pairingCode ?? null,
     status: data.instance?.status ?? "connecting",
   };
 }
 
-// Busca um QR novo (quando a instancia esta conectando).
-export async function obterQr(instanceName: string) {
-  const data = (await evo(`/instance/connect/${instanceName}`)) as {
+// Busca um QR e/ou codigo de pareamento novos (quando esta conectando).
+export async function obterQr(instanceName: string, numero?: string | null) {
+  const q = numero ? `?number=${encodeURIComponent(numero)}` : "";
+  const data = (await evo(`/instance/connect/${instanceName}${q}`)) as {
     base64?: string;
     pairingCode?: string;
   };

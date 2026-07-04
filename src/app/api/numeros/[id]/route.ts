@@ -28,6 +28,7 @@ export async function GET(
   const status = mapear(estado);
 
   let qr: string | null = null;
+  let pairing: string | null = null;
   let telefone: string | null = numero.telefone;
 
   if (estado === "open") {
@@ -40,10 +41,11 @@ export async function GET(
       });
     }
   } else {
-    // Ainda nao conectou: pega um QR fresco
+    // Ainda nao conectou: pega QR e/ou codigo de pareamento frescos
     try {
-      const r = await obterQr(numero.instanceName);
+      const r = await obterQr(numero.instanceName, numero.telefone);
       qr = r.qrBase64;
+      pairing = r.pairingCode;
     } catch {
       qr = null;
     }
@@ -52,5 +54,5 @@ export async function GET(
     }
   }
 
-  return NextResponse.json({ status, qr, telefone });
+  return NextResponse.json({ status, qr, pairing, telefone });
 }
