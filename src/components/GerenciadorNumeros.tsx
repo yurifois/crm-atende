@@ -8,7 +8,7 @@ type Acao = (formData: FormData) => void;
 type AcaoExcluir = (id: string) => void;
 
 const STATUS_LABEL: Record<string, { txt: string; cls: string }> = {
-  CRIADO: { txt: "criado", cls: "bg-zinc-100 text-zinc-500" },
+  CRIADO: { txt: "aguardando conexao", cls: "bg-amber-100 text-amber-700" },
   CONECTANDO: { txt: "aguardando conexao", cls: "bg-amber-100 text-amber-700" },
   CONECTADO: { txt: "conectado", cls: "bg-emerald-100 text-emerald-700" },
   DESCONECTADO: { txt: "desconectado", cls: "bg-red-100 text-red-700" },
@@ -64,31 +64,25 @@ function Conexao({
 
   const src = qr ? (qr.startsWith("data:") ? qr : `data:image/png;base64,${qr}`) : null;
 
-  if (status === "CONECTADO") {
-    return (
-      <div className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 p-4 text-center text-sm font-medium text-emerald-700">
-        Conectado com sucesso!
-      </div>
-    );
-  }
+  if (status === "CONECTADO") return null;
 
   return (
-    <div className="mt-3 space-y-3 rounded-md border border-zinc-200 bg-zinc-50 p-4">
+    <div className="mt-2 space-y-3 rounded-md border border-zinc-200 bg-zinc-50 p-4">
       {erro && <p className="text-sm text-red-600">{erro}</p>}
 
       {/* Codigo de pareamento (para conexao remota do cliente) */}
       {pairing ? (
         <div className="rounded-md border border-emerald-300 bg-white p-3">
           <p className="text-xs font-medium text-zinc-500">
-            Envie este codigo ao cliente:
+            Codigo de pareamento — envie ao cliente:
           </p>
           <p className="my-1 text-center font-mono text-2xl font-bold tracking-widest text-emerald-700">
             {formatarCodigo(pairing)}
           </p>
           <p className="text-xs leading-relaxed text-zinc-500">
-            No celular dele: WhatsApp &rarr; Aparelhos conectados &rarr; Conectar
-            aparelho &rarr; <strong>Conectar com numero de telefone</strong> &rarr;
-            digitar este codigo.
+            Peca ao cliente: abrir o WhatsApp &rarr; Aparelhos conectados &rarr;
+            Conectar aparelho &rarr; <strong>Conectar com numero de telefone</strong>{" "}
+            &rarr; digitar este codigo.
           </p>
         </div>
       ) : (
@@ -119,7 +113,6 @@ export default function GerenciadorNumeros({
   excluirNumero: AcaoExcluir;
 }) {
   const router = useRouter();
-  const [abertoId, setAbertoId] = useState<string | null>(null);
 
   return (
     <div className="rounded-lg border border-zinc-200 bg-white p-5">
@@ -134,12 +127,13 @@ export default function GerenciadorNumeros({
       <form action={criarNumero} className="mt-3 space-y-2">
         <input
           name="numero"
-          placeholder="Numero do cliente com DDI+DDD (ex: 5561999998888)"
+          placeholder="Numero do cliente com DDI+DDD (ex: 5561985711936)"
           className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
         />
         <p className="text-xs text-zinc-400">
-          Com o numero, gera um <strong>codigo de pareamento</strong> pra enviar
-          ao cliente (conexao a distancia). Em branco, conecta so por QR.
+          Formato: 55 (Brasil) + DDD + numero, sem espacos. Com o numero, o
+          codigo de pareamento aparece automaticamente abaixo. Em branco, conecta
+          so por QR.
         </p>
         <button
           type="submit"
@@ -169,33 +163,18 @@ export default function GerenciadorNumeros({
                       {badge.txt}
                     </span>
                   </div>
-                  <div className="flex items-center gap-3">
-                    {!conectado && (
-                      <button
-                        onClick={() => setAbertoId(abertoId === n.id ? null : n.id)}
-                        className="text-xs font-medium text-emerald-700 hover:underline"
-                      >
-                        {abertoId === n.id ? "Fechar" : "Ver codigo / QR"}
-                      </button>
-                    )}
-                    <form action={excluirNumero.bind(null, n.id)}>
-                      <button
-                        type="submit"
-                        className="text-xs text-zinc-400 hover:text-red-600"
-                      >
-                        remover
-                      </button>
-                    </form>
-                  </div>
+                  <form action={excluirNumero.bind(null, n.id)}>
+                    <button
+                      type="submit"
+                      className="text-xs text-zinc-400 hover:text-red-600"
+                    >
+                      remover
+                    </button>
+                  </form>
                 </div>
-                {abertoId === n.id && !conectado && (
-                  <Conexao
-                    numeroId={n.id}
-                    onConectado={() => {
-                      setAbertoId(null);
-                      router.refresh();
-                    }}
-                  />
+                {/* Codigo aparece automaticamente para numeros nao conectados */}
+                {!conectado && (
+                  <Conexao numeroId={n.id} onConectado={() => router.refresh()} />
                 )}
               </li>
             );
