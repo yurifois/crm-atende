@@ -1,0 +1,193 @@
+// Schema do banco — crm-atende
+// 1 Empresa = 1 ficha = N numeros de WhatsApp
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ------------------------------------------------------------------
+// Empresa (a "ficha" central)
+// ------------------------------------------------------------------
+model Empresa {
+  id             String   @id @default(cuid())
+  nome           String
+  descricao      String?  // CONTEXTO: o que a empresa e/faz
+  objetivo       String?  // TAREFA: meta principal do assistente (ex: agendar, vender X, captar email)
+  personalidade  String?  // tom de voz + tecnicas de venda
+  horarios       Json?    // estruturado: { dias: [...], abre: "09:00", fecha: "18:00" }
+  endereco       String?
+  pagamentos     String[] // ex: ["Pix", "Cartao de credito", "Dinheiro"]
+  parcelamento   String?  // condicoes de parcelamento
+  handoffRegra   String?  // quando parar e avisar um humano
+  notificacaoDestino String? // telefone/email que recebe o handoff
+  ativo          Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  servicos   Servico[]
+  promocoes  Promocao[]
+  objecoes   Objecao[]
+  faqs       FaqItem[]
+  recursos   RecursoFechamento[]
+  numeros    Numero[]
+  contatos   Contato[]
+  leads      Lead[]
+}
+
+// ------------------------------------------------------------------
+// Blocos da ficha
+// ------------------------------------------------------------------
+model Servico {
+  id        String  @id @default(cuid())
+  empresaId String
+  empresa   Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  nome      String
+  descricao String?
+  preco     String? // flexivel: "R$60", "a partir de R$60", "sob consulta"
+  duracao   String?
+  ordem     Int     @default(0)
+
+  @@index([empresaId])
+}
+
+model Promocao {
+  id        String  @id @default(cuid())
+  empresaId String
+  empresa   Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  titulo    String
+  descricao String?
+  condicoes String?
+  ativa     Boolean @default(true)
+
+  @@index([empresaId])
+}
+
+model Objecao {
+  id        String  @id @default(cuid())
+  empresaId String
+  empresa   Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  gatilho   String  // ex: "ta caro"
+  resposta  String
+
+  @@index([empresaId])
+}
+
+model FaqItem {
+  id        String  @id @default(cuid())
+  empresaId String
+  empresa   Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  pergunta  String
+  resposta  String
+
+  @@index([empresaId])
+}
+
+enum TipoRecurso {
+  LINK_PAGAMENTO
+  LINK_AGENDAMENTO
+  ARQUIVO
+  OUTRO
+}
+
+model RecursoFechamento {
+  id         String      @id @default(cuid())
+  empresaId  String
+  empresa    Empresa     @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  tipo       TipoRecurso
+  titulo     String
+  url        String?     // para links
+  arquivoPath String?    // para arquivos enviados
+  quandoUsar String?     // instrucao: quando o agente deve disparar isso
+
+  @@index([empresaId])
+}
+
+// ------------------------------------------------------------------
+// WhatsApp: cada Numero = uma instancia Evolution (N -> 1 Empresa)
+// ------------------------------------------------------------------
+enum StatusNumero {
+  CRIADO
+  CONECTANDO
+  CONECTADO
+  DESCONECTADO
+}
+
+model Numero {
+  id            String       @id @default(cuid())
+  empresaId     String
+  empresa       Empresa      @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  instanceName  String       @unique // nome da instancia na Evolution
+  instanceToken String?      // token proprio da instancia
+  telefone      String?      // numero conectado (preenchido apos parear)
+  status        StatusNumero @default(CRIADO)
+  createdAt     DateTime     @default(now())
+
+  @@index([empresaId])
+}
+
+// ------------------------------------------------------------------
+// Conversas e memoria (por contato)
+// ------------------------------------------------------------------
+model Contato {
+  id        String   @id @default(cuid())
+  empresaId String
+  empresa   Empresa  @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  telefone  String   // numero do cliente final
+  nome      String?
+  createdAt DateTime @default(now())
+
+  mensagens Mensagem[]
+  leads     Lead[]
+
+  @@unique([empresaId, telefone])
+  @@index([empresaId])
+}
+
+enum PapelMensagem {
+  USUARIO
+  ASSISTENTE
+  SISTEMA
+}
+
+model Mensagem {
+  id        String        @id @default(cuid())
+  contatoId String
+  contato   Contato       @relation(fields: [contatoId], references: [id], onDelete: Cascade)
+  papel     PapelMensagem
+  conteudo  String
+  createdAt DateTime      @default(now())
+
+  @@index([contatoId])
+}
+
+// ------------------------------------------------------------------
+// Leads (funil) — base para virar CRM no futuro
+// ------------------------------------------------------------------
+enum StatusLead {
+  NOVO
+  QUALIFICADO
+  QUENTE
+  FECHADO
+  PERDIDO
+}
+
+model Lead {
+  id         String     @id @default(cuid())
+  empresaId  String
+  empresa    Empresa    @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  contatoId  String?
+  contato    Contato?   @relation(fields: [contatoId], references: [id], onDelete: SetNull)
+  nome       String?
+  interesse  String?
+  status     StatusLead @default(NOVO)
+  observacao String?
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  @@index([empresaId])
+}
