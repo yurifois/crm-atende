@@ -149,6 +149,7 @@ export function montarPromptSistema(e: EmpresaComFicha): string {
 - Escreva como humano no WhatsApp: mensagens curtas e naturais, no maximo 2-3 frases por vez. Evite textao.
 - Seja caloroso e use o tom definido na personalidade.
 - Foque sempre, com sutileza, em avancar rumo ao seu objetivo principal.
+- SAIBA A HORA DE PARAR: quando o objetivo for alcancado (o cliente agendou, confirmou ou fechou), confirme de forma calorosa, agradeca e ENCERRE. Nao continue vendendo, nao insista e nao faca novas perguntas de venda depois disso.
 - ESCREVA EM TEXTO PURO. NUNCA use asteriscos (*), hashtags (#), underlines (_), negrito, italico, markdown nem marcadores de lista. Nada de destacar nomes de servicos ou palavras com simbolos.
 - Nao faca listas com bullets. Se precisar citar varios itens, escreva em frase corrida, separando por virgulas e "e".`,
   );

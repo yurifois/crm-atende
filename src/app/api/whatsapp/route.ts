@@ -26,6 +26,16 @@ function extrairTexto(msg: unknown): string | null {
   return t.trim() || null;
 }
 
+// Verifica se um texto "fromMe" foi enviado pelo proprio bot (eco), comparando
+// com as ultimas respostas do assistente. Se nao for, foi um humano digitando.
+function ehEcoDoBot(texto: string, msgsBot: { conteudo: string }[]): boolean {
+  const t = texto.trim();
+  return msgsBot.some((m) => {
+    const c = m.conteudo.trim();
+    return c === t || c.includes(t) || t.includes(c);
+  });
+}
+
 // Gera a resposta e envia — roda em segundo plano (nao bloqueia o webhook).
 async function gerarEEnviar(
   empresa: EmpresaComFicha,
@@ -77,8 +87,6 @@ export async function POST(req: Request) {
 
     const data = body.data;
     const remoteJid = data?.key?.remoteJid || "";
-    if (data?.key?.fromMe)
-      return NextResponse.json({ ok: true, ignorado: "fromMe" });
     if (remoteJid.includes("@g.us"))
       return NextResponse.json({ ok: true, ignorado: "grupo" });
 
@@ -107,6 +115,42 @@ export async function POST(req: Request) {
     if (!numero)
       return NextResponse.json({ ok: true, ignorado: "instancia-desconhecida" });
 
+    // -------- Mensagem enviada pelo proprio numero (fromMe) --------
+    // Pode ser o eco do bot OU uma resposta manual de um humano. Se for humano,
+    // a empresa assumiu a conversa -> pausa o bot para este contato.
+    if (data?.key?.fromMe) {
+      const contato = await prisma.contato.findUnique({
+        where: {
+          empresaId_telefone: { empresaId: numero.empresaId, telefone },
+        },
+      });
+      if (!contato) return NextResponse.json({ ok: true, ignorado: "sem-contato" });
+
+      if (!contato.pausado) {
+        const msgsBot = await prisma.mensagem.findMany({
+          where: { contatoId: contato.id, papel: "ASSISTENTE" },
+          orderBy: { createdAt: "desc" },
+          take: 6,
+        });
+        if (!ehEcoDoBot(texto, msgsBot)) {
+          // Humano assumiu: pausa e registra
+          await prisma.contato.update({
+            where: { id: contato.id },
+            data: { pausado: true },
+          });
+          await prisma.mensagem.create({
+            data: {
+              contatoId: contato.id,
+              papel: "SISTEMA",
+              conteudo: "[atendimento assumido por humano — bot pausado]",
+            },
+          });
+        }
+      }
+      return NextResponse.json({ ok: true, fromMe: true });
+    }
+
+    // -------- Mensagem do cliente --------
     const contato = await prisma.contato.upsert({
       where: {
         empresaId_telefone: { empresaId: numero.empresaId, telefone },
@@ -119,9 +163,15 @@ export async function POST(req: Request) {
       update: {},
     });
 
+    // Registra a mensagem recebida (mesmo se pausado, para historico)
     await prisma.mensagem.create({
       data: { contatoId: contato.id, papel: "USUARIO", conteudo: texto },
     });
+
+    // Se a conversa foi assumida por um humano, o bot nao responde mais.
+    if (contato.pausado) {
+      return NextResponse.json({ ok: true, pausado: true });
+    }
 
     // Processa e responde em segundo plano; devolve 200 imediatamente.
     void gerarEEnviar(numero.empresa, contato.id, instanceName, telefone);

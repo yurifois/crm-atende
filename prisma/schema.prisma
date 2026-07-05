@@ -139,6 +139,7 @@ model Contato {
   empresa   Empresa  @relation(fields: [empresaId], references: [id], onDelete: Cascade)
   telefone  String   // numero do cliente final
   nome      String?
+  pausado   Boolean  @default(false) // true = humano assumiu; bot nao responde mais
   createdAt DateTime @default(now())
 
   mensagens Mensagem[]
