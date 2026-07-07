@@ -56,6 +56,16 @@ async function gerarEEnviar(
 
     const resposta = await gerarResposta(montarPromptSistema(empresa), mensagens);
 
+    // Re-checa: um humano pode ter assumido a conversa durante a geracao.
+    const atual = await prisma.contato.findUnique({
+      where: { id: contatoId },
+      select: { pausado: true },
+    });
+    if (atual?.pausado) {
+      console.log("[webhook] conversa pausada durante a geracao — nao envia");
+      return;
+    }
+
     await prisma.mensagem.create({
       data: { contatoId, papel: "ASSISTENTE", conteudo: resposta },
     });
@@ -132,7 +142,11 @@ export async function POST(req: Request) {
           orderBy: { createdAt: "desc" },
           take: 6,
         });
-        if (!ehEcoDoBot(texto, msgsBot)) {
+        const eco = ehEcoDoBot(texto, msgsBot);
+        console.log(
+          `[webhook] fromMe de ${telefone}: ${eco ? "eco do bot (ignora)" : "HUMANO -> PAUSANDO conversa"}`,
+        );
+        if (!eco) {
           // Humano assumiu: pausa e registra
           await prisma.contato.update({
             where: { id: contato.id },
@@ -146,6 +160,8 @@ export async function POST(req: Request) {
             },
           });
         }
+      } else {
+        console.log(`[webhook] fromMe de ${telefone}: conversa ja estava pausada`);
       }
       return NextResponse.json({ ok: true, fromMe: true });
     }
@@ -170,10 +186,12 @@ export async function POST(req: Request) {
 
     // Se a conversa foi assumida por um humano, o bot nao responde mais.
     if (contato.pausado) {
+      console.log(`[webhook] msg de ${telefone}: conversa PAUSADA — bot nao responde`);
       return NextResponse.json({ ok: true, pausado: true });
     }
 
     // Processa e responde em segundo plano; devolve 200 imediatamente.
+    console.log(`[webhook] msg de ${telefone}: respondendo (lead frio)`);
     void gerarEEnviar(numero.empresa, contato.id, instanceName, telefone);
 
     return NextResponse.json({ ok: true });
