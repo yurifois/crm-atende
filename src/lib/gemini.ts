@@ -37,8 +37,11 @@ export async function gerarResposta(
       parts: [{ text: m.content }],
     })),
     generationConfig: {
-      temperature: 0.8,
+      temperature: 0.7,
       maxOutputTokens: 500,
+      // Desliga o "raciocinio" do modelo para evitar vazamento de texto
+      // interno na resposta (ex: analises em ingles no meio do atendimento).
+      thinkingConfig: { thinkingBudget: 0 },
     },
   };
 
