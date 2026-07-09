@@ -156,12 +156,13 @@ enum PapelMensagem {
 }
 
 model Mensagem {
-  id        String        @id @default(cuid())
-  contatoId String
-  contato   Contato       @relation(fields: [contatoId], references: [id], onDelete: Cascade)
-  papel     PapelMensagem
-  conteudo  String
-  createdAt DateTime      @default(now())
+  id          String        @id @default(cuid())
+  contatoId   String
+  contato     Contato       @relation(fields: [contatoId], references: [id], onDelete: Cascade)
+  papel       PapelMensagem
+  conteudo    String
+  waMessageId String?       @unique // id da msg no WhatsApp, para evitar processar 2x
+  createdAt   DateTime      @default(now())
 
   @@index([contatoId])
 }

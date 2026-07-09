@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { montarPromptSistema, type EmpresaComFicha } from "@/lib/prompt";
 import { gerarResposta, type MensagemChat } from "@/lib/gemini";
@@ -85,7 +86,7 @@ export async function POST(req: Request) {
       event?: string;
       instance?: string;
       data?: {
-        key?: { remoteJid?: string; fromMe?: boolean };
+        key?: { remoteJid?: string; fromMe?: boolean; id?: string };
         pushName?: string;
         message?: unknown;
       };
@@ -179,10 +180,28 @@ export async function POST(req: Request) {
       update: {},
     });
 
-    // Registra a mensagem recebida (mesmo se pausado, para historico)
-    await prisma.mensagem.create({
-      data: { contatoId: contato.id, papel: "USUARIO", conteudo: texto },
-    });
+    // Registra a mensagem recebida. O waMessageId (unico) evita processar o
+    // mesmo evento duas vezes (a Evolution as vezes reenvia) -> sem repeticao.
+    const msgId = data?.key?.id ?? null;
+    try {
+      await prisma.mensagem.create({
+        data: {
+          contatoId: contato.id,
+          papel: "USUARIO",
+          conteudo: texto,
+          waMessageId: msgId,
+        },
+      });
+    } catch (e) {
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === "P2002"
+      ) {
+        console.log(`[webhook] msg ${msgId} duplicada — ignorando`);
+        return NextResponse.json({ ok: true, duplicada: true });
+      }
+      throw e;
+    }
 
     // Se a conversa foi assumida por um humano, o bot nao responde mais.
     if (contato.pausado) {
