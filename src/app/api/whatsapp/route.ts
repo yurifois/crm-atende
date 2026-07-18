@@ -30,9 +30,14 @@ function extrairTexto(msg: unknown): string | null {
 // Verifica se um texto "fromMe" foi enviado pelo proprio bot (eco), comparando
 // com as ultimas respostas do assistente. Se nao for, foi um humano digitando.
 function ehEcoDoBot(texto: string, msgsBot: { conteudo: string }[]): boolean {
-  const t = texto.trim();
+  // Normaliza espacos/quebras de linha: os baloes enviados podem ter espacos
+  // no lugar de quebras de linha da mensagem salva. Sem isso, um pedaco da
+  // propria resposta do bot era confundido com "resposta humana" -> pausa falsa.
+  const norm = (s: string) => s.trim().replace(/\s+/g, " ").toLowerCase();
+  const t = norm(texto);
+  if (!t) return true;
   return msgsBot.some((m) => {
-    const c = m.conteudo.trim();
+    const c = norm(m.conteudo);
     return c === t || c.includes(t) || t.includes(c);
   });
 }
