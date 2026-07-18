@@ -115,16 +115,18 @@ export async function configurarWebhook(instanceName: string, url: string) {
 }
 
 // Envia uma mensagem de texto. `delay` (ms) simula o "digitando..." antes de enviar.
+// Retorna o ID da mensagem enviada (para reconhecer o eco depois), ou null.
 export async function enviarTexto(
   instanceName: string,
   numero: string,
   texto: string,
   delay = 1200,
-) {
-  await evo(`/message/sendText/${instanceName}`, {
+): Promise<string | null> {
+  const data = (await evo(`/message/sendText/${instanceName}`, {
     method: "POST",
     body: JSON.stringify({ number: numero, text: texto, delay }),
-  });
+  })) as { key?: { id?: string } };
+  return data?.key?.id ?? null;
 }
 
 export async function deletarInstancia(instanceName: string) {

@@ -162,6 +162,7 @@ model Mensagem {
   papel       PapelMensagem
   conteudo    String
   waMessageId String?       @unique // id da msg no WhatsApp, para evitar processar 2x
+  enviadoIds  String[]      @default([]) // ids dos baloes que o bot enviou (deteccao de eco)
   createdAt   DateTime      @default(now())
 
   @@index([contatoId])

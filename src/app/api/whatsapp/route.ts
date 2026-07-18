@@ -72,13 +72,22 @@ async function gerarEEnviar(
       return;
     }
 
-    await prisma.mensagem.create({
+    const msgAssistente = await prisma.mensagem.create({
       data: { contatoId, papel: "ASSISTENTE", conteudo: resposta },
     });
 
+    const idsEnviados: string[] = [];
     for (const balao of dividirMensagem(resposta)) {
       const delay = Math.min(2500, 700 + balao.length * 20);
-      await enviarTexto(instanceName, telefone, balao, delay);
+      const idEnviado = await enviarTexto(instanceName, telefone, balao, delay);
+      if (idEnviado) idsEnviados.push(idEnviado);
+    }
+    // Guarda os IDs dos baloes enviados para reconhecer o eco depois.
+    if (idsEnviados.length > 0) {
+      await prisma.mensagem.update({
+        where: { id: msgAssistente.id },
+        data: { enviadoIds: idsEnviados },
+      });
     }
   } catch (e) {
     console.error("[webhook] falha ao gerar/enviar resposta:", e);
@@ -143,12 +152,25 @@ export async function POST(req: Request) {
       if (!contato) return NextResponse.json({ ok: true, ignorado: "sem-contato" });
 
       if (!contato.pausado) {
-        const msgsBot = await prisma.mensagem.findMany({
-          where: { contatoId: contato.id, papel: "ASSISTENTE" },
-          orderBy: { createdAt: "desc" },
-          take: 6,
-        });
-        const eco = ehEcoDoBot(texto, msgsBot);
+        // 1) Checagem por ID (definitiva): o bot enviou essa mensagem?
+        const msgId = data?.key?.id ?? null;
+        let eco = false;
+        if (msgId) {
+          const enviada = await prisma.mensagem.findFirst({
+            where: { contatoId: contato.id, enviadoIds: { has: msgId } },
+            select: { id: true },
+          });
+          eco = !!enviada;
+        }
+        // 2) Reforco por texto (caso o ID nao venha por algum motivo).
+        if (!eco) {
+          const msgsBot = await prisma.mensagem.findMany({
+            where: { contatoId: contato.id, papel: "ASSISTENTE" },
+            orderBy: { createdAt: "desc" },
+            take: 6,
+          });
+          eco = ehEcoDoBot(texto, msgsBot);
+        }
         console.log(
           `[webhook] fromMe de ${telefone}: ${eco ? "eco do bot (ignora)" : "HUMANO -> PAUSANDO conversa"}`,
         );
